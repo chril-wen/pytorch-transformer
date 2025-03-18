@@ -24,23 +24,23 @@ class MultiHeadAttention(nn.Module):
         q=self.w_q(x_q) # q: (batch_size,seq_len,head*q_k_size)
         k=self.w_k(x_k_v) # k: (batch_size,seq_len,head*q_k_size)
         
-        # 多头兼容
-        q=q.view(q.size()[0],q.size()[1],self.head,self.q_k_size).transpose(1,2) # q: (batch_size,head,seq_len,q_k_size)
+        # 多头兼容  seq_len行seq_len列的打分表
+        q=q.view(q.size()[0],q.size()[1],self.head,self.q_k_size).transpose(1,2) # q: (batch_size,head,seq_len,q_k_size) 头提出来，把头放句子前面
         k=k.view(k.size()[0],k.size()[1],self.head,self.q_k_size).transpose(1,2).transpose(2,3) # k:(batch_size,head,q_k_size,seq_len)
 
         # 注意力矩阵
         attn=torch.matmul(q,k)/math.sqrt(self.q_k_size) # (batch_size,head,seq_len,seq_len) row是q,col是k
         
         # 注意力分值处理
-        # attn_mask: (batch_size,seq_len,seq_len)
+        # attn_mask: (batch_size,seq_len,seq_len)   pad词的地方是true
         attn_mask=attn_mask.unsqueeze(1).expand(-1,self.head,-1,-1) # attn_mask: (batch_size,head,seq_len,seq_len)
-        attn=attn.masked_fill(attn_mask,-1e9)
-        attn=torch.softmax(attn,dim=-1) # scores: (batch_size,head,seq_len,seq_len)
+        attn=attn.masked_fill(attn_mask,-1e9)   # 赋很小的一个负数
+        attn=torch.softmax(attn,dim=-1) # scores: (batch_size,head,seq_len,seq_len) 最后一维做概率分布，谁大谁高，得到这个attn时最小的数字会乘0，乘上value后也是全0，没意义没贡献
 
-        # 注意力与V相乘
+        # 注意力与V相乘 每个词的query和key点积求分数
         v=self.w_v(x_k_v) # v: (batch_size,seq_len,head*v_size)
         v=v.view(v.size()[0],v.size()[1],self.head,self.v_size).transpose(1,2) # v: (batch_size,head,seq_len,v_size)
-        z=torch.matmul(attn,v) # z: (batch_size,head,seq_len,v_size)
+        z=torch.matmul(attn,v) # z: (batch_size,head,seq_len,v_size)    # 点积
         z=z.transpose(1,2) # z: (batch_size,seq_len,head,v_size)
         return z.reshape(z.size()[0],z.size()[1],-1) # z: (batch_size,seq_len,head*v_size)
 
@@ -49,11 +49,11 @@ if __name__=='__main__':
     emb=EmbeddingWithPosition(len(de_vocab),128)
     de_tokens,de_ids=de_preprocess(train_dataset[0][0]) # 取de句子转词ID序列
     de_ids_tensor=torch.tensor(de_ids,dtype=torch.long)
-    emb_result=emb(de_ids_tensor.unsqueeze(0)) # 转batch再输入模型
+    emb_result=emb(de_ids_tensor.unsqueeze(0)) # 转batch再输入模型  (1,15,128)
     print('emb_result:', emb_result.size())
 
     # 多头注意力
-    multihead=MultiHeadAttention(emb_size=128,q_k_size=256,v_size=512,head=8)
+    multihead=MultiHeadAttention(emb_size=128,q_k_size=256,v_size=512,head=8)   # 8个头 512*8=4096
     attn_mask=torch.zeros((1,de_ids_tensor.size()[0],de_ids_tensor.size()[0])) # batch中每个样本对应1个注意力矩阵
-    multihead_result=multihead(x_q=emb_result,x_k_v=emb_result,attn_mask=attn_mask)
+    multihead_result=multihead(x_q=emb_result,x_k_v=emb_result,attn_mask=attn_mask) # 输入Q,K,V (1,15,4096)
     print('multihead_result:', multihead_result.size())

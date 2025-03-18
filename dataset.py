@@ -18,7 +18,7 @@ en_tokenizer=get_tokenizer('spacy', language='en_core_web_sm')
 
 # 生成词表
 UNK_IDX, PAD_IDX, BOS_IDX, EOS_IDX = 0, 1, 2, 3     # 特殊token
-UNK_SYM, PAD_SYM, BOS_SYM, EOS_SYM = '<unk>', '<pad>', '<bos>', '<eos>'
+UNK_SYM, PAD_SYM, BOS_SYM, EOS_SYM = '<unk>', '<pad>', '<bos>', '<eos>' # 不认识、填充词（批量输入模型，补齐短句子占位）、begin、end（decoder需要明确知道开始和结束）
 
 de_tokens=[] # 德语token列表
 en_tokens=[] # 英语token列表
@@ -26,7 +26,9 @@ for de,en in train_dataset:
     de_tokens.append(de_tokenizer(de))
     en_tokens.append(en_tokenizer(en))
 
+# special_firt指定特殊token优先
 de_vocab=build_vocab_from_iterator(de_tokens,specials=[UNK_SYM, PAD_SYM, BOS_SYM, EOS_SYM],special_first=True) # 德语token词表
+# 返回词id，顺序
 de_vocab.set_default_index(UNK_IDX)
 en_vocab=build_vocab_from_iterator(en_tokens,specials=[UNK_SYM, PAD_SYM, BOS_SYM, EOS_SYM],special_first=True) # 英语token词表
 en_vocab.set_default_index(UNK_IDX)
